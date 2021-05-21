@@ -5,7 +5,13 @@ VisualStudioVersion = 16.0.31205.134
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CoolJoy", "CoolJoy.vcxproj", "{C5F80730-F44F-4478-BDAE-6634EFC2CA88}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ArduinoJoystickLibrary", "ArduinoJoystickLibrary\ArduinoJoystickLibrary.vcxitems", "{ABBDE935-E99D-4E7F-94C4-DECF0ED52167}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		ArduinoJoystickLibrary\ArduinoJoystickLibrary.vcxitems*{abbde935-e99d-4e7f-94c4-decf0ed52167}*SharedItemsImports = 9
+		ArduinoJoystickLibrary\ArduinoJoystickLibrary.vcxitems*{c5f80730-f44f-4478-bdae-6634efc2ca88}*SharedItemsImports = 4
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
 		Release|x86 = Release|x86

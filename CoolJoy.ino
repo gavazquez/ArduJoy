@@ -2,6 +2,9 @@
 //https://www.reddit.com/r/hoggit/comments/45j5pk/tm_warthog_stick_circuitry/
 
 #include <Joystick.h>
+#include <Wire.h>
+#include "MLX90393.h"
+
 int latchPin = 8;
 int dataPin = 9;
 int clockPin = 7;
@@ -10,6 +13,9 @@ bool debug = true;
 
 byte oldValues[4];
 byte newValues[4];
+
+// MLX90393 I2C Address. Check MLX90393 datasheet. I've found it by trial and error
+MLX90393_ MLX90393(0x0F);
 
 #define READ_REGISTER_PIN( pin, data ) ( ( data & ( 1 << pin ) ) != 0 )
 
@@ -23,6 +29,7 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK,
 
 void setup() {
     Serial.begin(9600);
+
     pinMode(dataPin, INPUT);
     pinMode(latchPin, OUTPUT);
     pinMode(clockPin, OUTPUT);
@@ -37,10 +44,19 @@ void setup() {
     Joystick.setXAxisRange(0, 100);
     Joystick.setYAxisRange(0, 100);
     Joystick.setZAxisRange(0, 100);
+
+    MLX90393.begin();
 }
 
 void loop() {
     byte c_Result;
+
+    Serial.println("UPD:");
+    MLX90393.updateAxisValues();
+    Serial.print("X:");
+    Serial.print(MLX90393.X);
+    Serial.print(" Y:");
+    Serial.println(MLX90393.Y);
 
     digitalWrite(latchPin, HIGH);
     delayMicroseconds(20);
