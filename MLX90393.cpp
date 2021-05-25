@@ -42,9 +42,18 @@ void MLX90393_::begin()
     }
     delay(300);
 
-    // Start single meaurement mode, ZYX enabled
+    _started = true;
+}
+
+void MLX90393_::updateAxisValues()
+{
+    if (!_started) return;
+
+	unsigned int data[7];
+
+    // Start single meaurement mode, YX enabled
     Wire.beginTransmission(_address);
-    Wire.write(0x3E);
+    Wire.write(0x36);
     Wire.endTransmission();
 
     // Request and read status byte (1 byte)
@@ -54,15 +63,6 @@ void MLX90393_::begin()
         unsigned int c = Wire.read();
     }
     delay(100);
-
-    _started = true;
-}
-
-void MLX90393_::updateAxisValues()
-{
-    if (!_started) return;
-
-	unsigned int data[7];
 
     // Send read measurement command (RM), YX enabled
 	Wire.beginTransmission(_address);

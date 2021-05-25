@@ -15,7 +15,7 @@
 class MLX90393_
 {
 	private:	
-		byte	    _address;
+		int			_address;
 		bool	    _started;
 	public:
 		int X;
