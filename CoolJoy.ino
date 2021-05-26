@@ -21,11 +21,11 @@ MLX90393_ MLX90393(0x0F);
 
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK,
     16, 4,                  // Button Count, Hat Switch Count
-    false, false, false,     // X and Y, but no Z Axis
-    false, false, false,   // No Rx, Ry, or Rz
-    false, false,          //No slider or dial
-    false, false,          // No rudder or throttle
-    false, false, false);  // No accelerator, brake, or steering
+    true, true, true,    // X and Y, but no Z Axis
+    false, false, false,    // No Rx, Ry, or Rz
+    false, false,           //No slider or dial
+    false, false,           // No rudder or throttle
+    false, false, false);   // No accelerator, brake, or steering
 
 void setup() {
     Serial.begin(9600);
@@ -48,18 +48,17 @@ void setup() {
     MLX90393.begin();
 }
 
+int max;
+
 void loop() {
     byte c_Result;
 
-    Serial.println("UPD:");
     MLX90393.updateAxisValues();
-    Serial.print("X:");
-    Serial.print(MLX90393.X);
-    Serial.print(" Y:");
-    Serial.println(MLX90393.Y);
+    Joystick.setXAxis(map(MLX90393.X, -22322, 19165, 0, 100));
+    Joystick.setYAxis(map(MLX90393.Y, -21791, 17331, 0, 100));
 
     digitalWrite(latchPin, HIGH);
-    delayMicroseconds(20);
+    delayMicroseconds(10);
     digitalWrite(latchPin, LOW);
 
     newValues[0] = ReadRegister();
@@ -69,7 +68,7 @@ void loop() {
 
     CompareArrays(oldValues, newValues);
 
-    short axisVal = ReadAxis(-20000, 6000); 
+    short axisVal = ReadAxis(-20000, 6000);
     Joystick.setZAxis(axisVal);
     if (axisVal >= 50)
     {
