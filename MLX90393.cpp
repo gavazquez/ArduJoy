@@ -40,7 +40,7 @@ void MLX90393_::begin()
     {
         unsigned int c = Wire.read();
     }
-    delay(300);
+    delay(100);
 
     _started = true;
 }
@@ -62,7 +62,7 @@ void MLX90393_::updateAxisValues()
     {
         unsigned int c = Wire.read();
     }
-    delay(100);
+    delay(5);
 
     // Send read measurement command (RM), YX enabled
 	Wire.beginTransmission(_address);
