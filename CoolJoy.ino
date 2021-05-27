@@ -4,6 +4,8 @@
 #include <Joystick.h>
 #include <Wire.h>
 #include "MLX90393.h"
+#include "LinkedList.h"
+#include "Button.h"
 
 int latchPin = 8;
 int dataPin = 9;
@@ -12,12 +14,18 @@ int clockPin = 7;
 bool debug = true;
 
 byte oldValues[4];
-byte newValues[4];
+
+LinkedList<Button*> changedButtons = LinkedList<Button*>();
+
+int buttonCount = 32;
+bool oldButtonPresses[32];
 
 // MLX90393 I2C Address. Check MLX90393 datasheet. I've found it by trial and error
 MLX90393_ MLX90393(0x0F);
 
 #define READ_REGISTER_PIN( pin, data ) ( ( data & ( 1 << pin ) ) != 0 )
+constexpr auto OFF_STATE = 1;
+constexpr auto ON_STATE = 0;
 
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK,
     16, 4,                  // Button Count, Hat Switch Count
@@ -26,6 +34,7 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK,
     false, false,           //No slider or dial
     false, false,           // No rudder or throttle
     false, false, false);   // No accelerator, brake, or steering
+
 
 void setup() {
     Serial.begin(9600);
@@ -61,12 +70,15 @@ void loop() {
     delayMicroseconds(10);
     digitalWrite(latchPin, LOW);
 
-    newValues[0] = ReadRegister();
-    newValues[1] = ReadRegister();
-    newValues[2] = ReadRegister();
-    newValues[3] = ReadRegister();
-
-    CompareArrays(oldValues, newValues);
+    getChangedButtons();
+    for (int i = 0; i < changedButtons.size(); i++)
+    {
+        Button* btn = changedButtons[i];
+        Serial.print("Btn: ");
+        Serial.print(btn->Index);
+        Serial.print(" Val: ");
+        Serial.println(btn->Value);
+    }
 
     short axisVal = ReadAxis(-20000, 6000);
     Joystick.setZAxis(axisVal);
@@ -85,6 +97,27 @@ void loop() {
         Joystick.setHatSwitch(1, -1);
         Joystick.setHatSwitch(2, -1);
         Joystick.setHatSwitch(3, -1);
+    }
+}
+
+void getChangedButtons() 
+{
+    changedButtons.clear();
+
+    for (int i = 0; i < 4; i++)
+    {
+        byte value = ReadRegister();
+        for (int j = 0; j < 8; j++)
+        {
+            int index = (i * 8) + j;
+            bool pinValue = READ_REGISTER_PIN(j, value) == ON_STATE ? true : false;
+            if (oldButtonPresses[index] != pinValue)
+            {
+                oldButtonPresses[index] = pinValue;           
+                Button* btn = new Button(index + 1, pinValue);
+                changedButtons.add(btn);
+            }
+        }
     }
 }
 
@@ -116,40 +149,6 @@ void printByteVals(byte val)
         Serial.print(READ_REGISTER_PIN(i, val));
     }
     Serial.println();
-}
-
-void CompareArrays(byte* oldArray, byte* newArray)
-{
-    int i;
-
-    bool registerHasChanges;
-    bool newVal;
-    bool oldVal;
-    for (i = 0; i < 4; i++)
-    {
-        registerHasChanges = false;
-        for (int j = 0; j < 8; j++) 
-        {
-            oldVal = READ_REGISTER_PIN(j, oldArray[i]);
-            newVal = READ_REGISTER_PIN(j, newArray[i]);
-
-            if (oldVal != newVal)
-            {
-                registerHasChanges = true;
-                if (newVal == 0)
-                {
-                    Serial.print("Btn: ");
-                    Serial.print((8 * i) + (j + 1));
-                    Serial.println(" PRESSED");
-                }
-            }
-        }
-
-        if (registerHasChanges)
-        {
-            oldArray[i] = newArray[i];
-        }
-    }
 }
 
 short ReadAxis(short lowerLimit, short upperLimit)
