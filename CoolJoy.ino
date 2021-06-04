@@ -4,8 +4,9 @@
 #include <Joystick.h>
 #include <Wire.h>
 #include "MLX90393.h"
-#include "LinkedList.h"
-#include "Button.h"
+#include "arduino-timer.h""
+
+auto timer = timer_create_default();
 
 int latchPin = 8;
 int dataPin = 9;
@@ -13,28 +14,47 @@ int clockPin = 7;
 
 bool debug = true;
 
-byte oldValues[4];
-
-LinkedList<Button*> changedButtons = LinkedList<Button*>();
+int oldValues;
+int newValues;
 
 int buttonCount = 32;
-bool oldButtonPresses[32];
+
+unsigned long oldButtonState = 0;
 
 // MLX90393 I2C Address. Check MLX90393 datasheet. I've found it by trial and error
 MLX90393_ MLX90393(0x0F);
 
-#define READ_REGISTER_PIN( pin, data ) ( ( data & ( 1 << pin ) ) != 0 )
+#define ReadBit(value, bit) (((value) >> (buttonCount - bit)) & 0x01) == ON_STATE
+
 constexpr auto OFF_STATE = 1;
 constexpr auto ON_STATE = 0;
 
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_JOYSTICK,
-    16, 4,                  // Button Count, Hat Switch Count
+    17, 4,                  // Button Count, Hat Switch Count
     true, true, true,    // X and Y, but no Z Axis
     false, false, false,    // No Rx, Ry, or Rz
     false, false,           //No slider or dial
     false, false,           // No rudder or throttle
     false, false, false);   // No accelerator, brake, or steering
 
+class SwitchButton {
+    long timetoSwitchOff;
+    int buttonId;
+    Joystick_* joy;
+
+public:
+    SwitchButton(Joystick_* joystick, int button, int timeToStop) {
+        timetoSwitchOff = millis() + timeToStop;
+        buttonId = button;
+        joy = joystick;
+
+        joy->pressButton(buttonId);
+    }
+    void Check() {
+        if (millis() >= timetoSwitchOff)
+            joy->releaseButton(buttonId);
+    }
+};
 
 void setup() {
     Serial.begin(9600);
@@ -49,7 +69,7 @@ void setup() {
     delayMicroseconds(20);
     digitalWrite(clockPin, LOW);
 
-    Joystick.begin();
+    Joystick.begin(false);
     Joystick.setXAxisRange(0, 100);
     Joystick.setYAxisRange(0, 100);
     Joystick.setZAxisRange(0, 100);
@@ -60,7 +80,7 @@ void setup() {
 int max;
 
 void loop() {
-    byte c_Result;
+    timer.tick();
 
     MLX90393.updateAxisValues();
     Joystick.setXAxis(map(MLX90393.X, -22322, 19165, 0, 100));
@@ -70,55 +90,123 @@ void loop() {
     delayMicroseconds(10);
     digitalWrite(latchPin, LOW);
 
-    getChangedButtons();
-    for (int i = 0; i < changedButtons.size(); i++)
-    {
-        Button* btn = changedButtons[i];
-        Serial.print("Btn: ");
-        Serial.print(btn->Index);
-        Serial.print(" Val: ");
-        Serial.println(btn->Value);
-    }
+    HandleButtonPresses();
 
     short axisVal = ReadAxis(-20000, 6000);
     Joystick.setZAxis(axisVal);
-    if (axisVal >= 50)
-    {
-        Joystick.pressButton(0);
-        Joystick.setHatSwitch(0, 0);
-        Joystick.setHatSwitch(1, 90);
-        Joystick.setHatSwitch(2, 180);
-        Joystick.setHatSwitch(3, 270);
-    }
-    if (axisVal <= 10)
-    {
-        Joystick.releaseButton(0);
-        Joystick.setHatSwitch(0, -1);
-        Joystick.setHatSwitch(1, -1);
-        Joystick.setHatSwitch(2, -1);
-        Joystick.setHatSwitch(3, -1);
+
+    Joystick.sendState();
+}
+
+void HandleButtonPresses()
+{
+    unsigned long buttonState = getButtonPresses();
+
+    PressReleaseButton(buttonState, 1, 1);
+    PressReleaseButton(buttonState, 2, 14);
+    PressReleaseButton(buttonState, 3, 16);
+    PressReleaseButton(buttonState, 4, 15);
+    PressReleaseButton(buttonState, 5, 5);
+
+    ToggleButtonOn(buttonState, 6, 2);
+    ToggleButtonOff(buttonState, 6, 3);
+
+    PressReleaseButton(buttonState, 7, 11);
+    PressReleaseButton(buttonState, 8, 0);
+
+    PressReleaseHat(ReadBit(buttonState, 12), ReadBit(buttonState, 11), ReadBit(buttonState, 10), ReadBit(buttonState, 9), false, 1);
+    PressReleaseHat(ReadBit(buttonState, 16), ReadBit(buttonState, 15), ReadBit(buttonState, 14), ReadBit(buttonState, 13), true, 0);
+    PressReleaseHat(ReadBit(buttonState, 20), ReadBit(buttonState, 19), ReadBit(buttonState, 18), ReadBit(buttonState, 17), false, 3);
+    PressReleaseHat(ReadBit(buttonState, 24), ReadBit(buttonState, 23), ReadBit(buttonState, 22), ReadBit(buttonState, 21), false, 2);
+
+    PressReleaseButton(buttonState, 25, 9);
+    PressReleaseButton(buttonState, 26, 8);
+    PressReleaseButton(buttonState, 27, 10);
+    PressReleaseButton(buttonState, 28, 13);
+    PressReleaseButton(buttonState, 29, 12);
+    PressReleaseButton(buttonState, 30, 6);
+    PressReleaseButton(buttonState, 31, 7);
+    PressReleaseButton(buttonState, 32, 4);
+
+    oldButtonState = buttonState;
+}
+
+void PressReleaseButton(unsigned long buttonState, int buttonIndex, int buttonId)
+{
+    bool oldValue = ReadBit(oldButtonState, buttonIndex);
+    bool value = ReadBit(buttonState, buttonIndex);
+
+    if (value && !oldValue)
+        Joystick.pressButton(buttonId);
+    else if (!value && oldValue)
+        Joystick.releaseButton(buttonId);
+}
+
+void ToggleButtonOn(unsigned long buttonState, int buttonIndex, int buttonId) {
+    bool oldValue = ReadBit(oldButtonState, buttonIndex);
+    bool value = ReadBit(buttonState, buttonIndex);
+
+    if (oldValue != value && value) {
+        Joystick.pressButton(buttonId);
+        timer.in(100, [](void* btnId) -> bool {
+            Joystick.releaseButton((int)btnId);
+            return false;
+            }, buttonId);
     }
 }
 
-void getChangedButtons() 
-{
-    changedButtons.clear();
 
-    for (int i = 0; i < 4; i++)
-    {
-        byte value = ReadRegister();
-        for (int j = 0; j < 8; j++)
-        {
-            int index = (i * 8) + j;
-            bool pinValue = READ_REGISTER_PIN(j, value) == ON_STATE ? true : false;
-            if (oldButtonPresses[index] != pinValue)
-            {
-                oldButtonPresses[index] = pinValue;           
-                Button* btn = new Button(index + 1, pinValue);
-                changedButtons.add(btn);
-            }
-        }
+void ToggleButtonOff(unsigned long buttonState, int buttonIndex, int buttonId) {
+    bool oldValue = ReadBit(oldButtonState, buttonIndex);
+    bool value = ReadBit(buttonState, buttonIndex);
+
+    if (oldValue != value && !value) {
+        Joystick.pressButton(buttonId);
+        timer.in(100, [](void* btnId) -> bool {
+            Joystick.releaseButton((int)btnId);
+            return false;
+            }, buttonId);
     }
+}
+
+void PressReleaseHat(bool upVal, bool rightVal, bool downVal, bool leftVal, bool allowDiagonals, int hatId)
+{
+    if (upVal && !rightVal && !downVal && !leftVal)
+        Joystick.setHatSwitch(hatId, 0);
+    else if (upVal && rightVal && !downVal && !leftVal && allowDiagonals)
+        Joystick.setHatSwitch(hatId, 0 + 45);
+    else if (!upVal && rightVal && !downVal && !leftVal)
+        Joystick.setHatSwitch(hatId, 90);
+    else if (!upVal && rightVal && downVal && !leftVal && allowDiagonals)
+        Joystick.setHatSwitch(hatId, 90 + 45);
+    else if (!upVal && !rightVal && downVal && !leftVal)
+        Joystick.setHatSwitch(hatId, 180);
+    else if (!upVal && !rightVal && downVal && leftVal && allowDiagonals)
+        Joystick.setHatSwitch(hatId, 180 + 45);
+    else if (!upVal && !rightVal && !downVal && leftVal)
+        Joystick.setHatSwitch(hatId, 270);
+    else if (upVal && !rightVal && !downVal && leftVal && allowDiagonals)
+        Joystick.setHatSwitch(hatId, 270 + 45);
+    else
+        Joystick.setHatSwitch(hatId, -1);
+}
+
+unsigned long getButtonPresses()
+{
+    return (long)flipByte(ReadRegister()) << 24 |
+        (long)flipByte(ReadRegister()) << 16 | 
+        (long)flipByte(ReadRegister()) << 8 | 
+        (long)flipByte(ReadRegister());
+}
+
+byte flipByte(byte c) {
+    char r = 0;
+    for (byte i = 0; i < 8; i++) {
+        r <<= 1;
+        r |= c & 1;
+        c >>= 1;
+    }
+    return r;
 }
 
 byte ReadRegister()
@@ -141,14 +229,6 @@ byte ReadRegister()
     }
 
     return result;
-}
-
-void printByteVals(byte val)
-{
-    for (int i = 0; i < 8; i++) {
-        Serial.print(READ_REGISTER_PIN(i, val));
-    }
-    Serial.println();
 }
 
 short ReadAxis(short lowerLimit, short upperLimit)
