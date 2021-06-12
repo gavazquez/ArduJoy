@@ -83,7 +83,7 @@ void loop() {
     timer.tick();
 
     MLX90393.updateAxisValues();
-    Joystick.setXAxis(map(MLX90393.X, -22322, 19165, 0, 100));
+    Joystick.setXAxis(map(MLX90393.X, -22322, 19165, 100, 0));
     Joystick.setYAxis(map(MLX90393.Y, -21791, 17331, 0, 100));
 
     digitalWrite(latchPin, HIGH);
